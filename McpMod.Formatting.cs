@@ -139,6 +139,21 @@ public static partial class McpMod
 
             sb.AppendLine($"Draw: {player["draw_pile_count"]} | Discard: {player["discard_pile_count"]} | Exhaust: {player["exhaust_pile_count"]}");
             sb.AppendLine();
+
+            if (player.TryGetValue("orbs", out var orbsObj) && orbsObj is List<Dictionary<string, object?>> orbs && orbs.Count > 0)
+            {
+                int slots = player.TryGetValue("orb_slots", out var osVal) && osVal is int sv ? sv : orbs.Count;
+                int empty = player.TryGetValue("orb_empty_slots", out var esVal) && esVal is int ev ? ev : 0;
+                sb.AppendLine($"### Orbs ({orbs.Count}/{slots} slots)");
+                foreach (var orb in orbs)
+                {
+                    string desc = orb.TryGetValue("description", out var d) && d != null ? $" — {d}" : "";
+                    sb.AppendLine($"- **{orb["name"]}** (passive: {orb["passive_val"]}, evoke: {orb["evoke_val"]}){desc}");
+                }
+                if (empty > 0)
+                    sb.AppendLine($"- *{empty} empty slot(s)*");
+                sb.AppendLine();
+            }
         }
 
         if (battle.TryGetValue("enemies", out var enemiesObj) && enemiesObj is List<Dictionary<string, object?>> enemies && enemies.Count > 0)

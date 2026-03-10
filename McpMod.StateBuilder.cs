@@ -286,18 +286,34 @@ public static partial class McpMod
             state["exhaust_pile_count"] = combatState.ExhaustPile.Cards.Count;
 
             // Orbs
-            if (combatState.OrbQueue.Orbs.Count > 0)
+            if (combatState.OrbQueue.Capacity > 0)
             {
                 var orbs = new List<Dictionary<string, object?>>();
                 foreach (var orb in combatState.OrbQueue.Orbs)
                 {
+                    // Populate SmartDescription placeholders with Focus-modified values,
+                    // mirroring OrbModel.HoverTips getter (OrbModel.cs:92-94)
+                    string? description = SafeGetText(() =>
+                    {
+                        var desc = orb.SmartDescription;
+                        desc.Add("energyPrefix", orb.Owner.Character.CardPool.Title);
+                        desc.Add("Passive", orb.PassiveVal);
+                        desc.Add("Evoke", orb.EvokeVal);
+                        return desc;
+                    });
                     orbs.Add(new Dictionary<string, object?>
                     {
                         ["id"] = orb.Id.Entry,
-                        ["name"] = SafeGetText(() => orb.Id.Entry) // orbs may not have LocString easily
+                        ["name"] = SafeGetText(() => orb.Title),
+                        ["description"] = description,
+                        ["passive_val"] = orb.PassiveVal,
+                        ["evoke_val"] = orb.EvokeVal,
+                        ["keywords"] = BuildHoverTips(orb.HoverTips)
                     });
                 }
                 state["orbs"] = orbs;
+                state["orb_slots"] = combatState.OrbQueue.Capacity;
+                state["orb_empty_slots"] = combatState.OrbQueue.Capacity - combatState.OrbQueue.Orbs.Count;
             }
         }
 
