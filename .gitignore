@@ -13,3 +13,6 @@ mcp/.venv/
 # .mcp.json
 CLAUDE.md
 GUIDE.md
+
+# Qoder
+.qoder.json
