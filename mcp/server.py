@@ -73,6 +73,9 @@ PLAY_PHASE_POLL_INTERVAL_SEC = 1.0
 # Safety cap so MCP does not hang forever if the game never advances.
 MAX_PLAY_PHASE_WAIT_SEC = 600.0
 
+# After a successful POST (play_card, claim_reward, …), wait before polling state so UI / phase updates settle.
+POST_ACTION_STATE_DELAY_SEC = 1.0
+
 
 async def _get_json_until_play_phase() -> tuple[str, bool]:
     """Poll GET JSON until ``battle.is_play_phase`` is not false, or timeout.
@@ -89,122 +92,6 @@ async def _get_json_until_play_phase() -> tuple[str, bool]:
         if time.monotonic() >= deadline:
             return (raw_json, True)
         await asyncio.sleep(PLAY_PHASE_POLL_INTERVAL_SEC)
-
-
-def _local_player_block(state: dict) -> dict | None:
-    """Local player's combat block: multiplayer uses battle.player; singleplayer uses root player."""
-    battle = state.get("battle")
-    if isinstance(battle, dict):
-        bp = battle.get("player")
-        if isinstance(bp, dict):
-            return bp
-    player = state.get("player")
-    if isinstance(player, dict):
-        return player
-    return None
-
-
-def _build_hand_only_payload(state: dict) -> dict:
-    """Extract combat hand, energy, and optional hand_select from a full game-state dict."""
-    payload: dict = {"state_type": state.get("state_type")}
-    if "message" in state:
-        payload["message"] = state["message"]
-    hs = state.get("hand_select")
-    if isinstance(hs, dict):
-        payload["hand_select"] = hs
-
-    lp = _local_player_block(state)
-    hand: list = []
-    if lp is not None:
-        h = lp.get("hand")
-        if isinstance(h, list):
-            hand = h
-        if "energy" in lp:
-            payload["energy"] = lp["energy"]
-        if "max_energy" in lp:
-            payload["max_energy"] = lp["max_energy"]
-        if "stars" in lp:
-            payload["stars"] = lp["stars"]
-    payload["hand"] = hand
-    return payload
-
-
-def _format_hand_only_markdown(payload: dict) -> str:
-    lines: list[str] = []
-    st = payload.get("state_type", "?")
-    lines.append(f"**state_type:** `{st}`")
-    if "message" in payload:
-        lines.append(f"**message:** {payload['message']}")
-    if "energy" in payload or "max_energy" in payload:
-        e = payload.get("energy")
-        m = payload.get("max_energy")
-        star = payload.get("stars")
-        extra = f" | Stars: {star}" if star is not None else ""
-        lines.append(f"**Energy:** {e}/{m}{extra}")
-    lines.append("")
-
-    hs = payload.get("hand_select")
-    if isinstance(hs, dict):
-        lines.append("## In-Combat Card Selection")
-        p = hs.get("prompt")
-        if p:
-            lines.append(f"*{p}*")
-            lines.append("")
-        cards = hs.get("cards")
-        if isinstance(cards, list) and cards:
-            lines.append("### Selectable Cards")
-            for c in cards:
-                if not isinstance(c, dict):
-                    continue
-                lines.append(
-                    f"- [{c.get('index')}] **{c.get('name')}** ({c.get('cost')} energy) "
-                    f"[{c.get('type')}] — {c.get('description')}"
-                )
-            lines.append("")
-        sel = hs.get("selected_cards")
-        if isinstance(sel, list) and sel:
-            lines.append("### Already Selected")
-            for c in sel:
-                if isinstance(c, dict):
-                    lines.append(f"- {c.get('name')}")
-            lines.append("")
-        cc = hs.get("can_confirm")
-        lines.append(
-            f"Can confirm: **{cc is True}** — use `combat_select_card` / `combat_confirm_selection` as needed."
-        )
-        lines.append("")
-
-    hand = payload.get("hand")
-    has_selectable = isinstance(hs, dict) and isinstance(hs.get("cards"), list) and len(hs["cards"]) > 0
-    if isinstance(hand, list) and hand:
-        lines.append("## Hand")
-        for c in hand:
-            if not isinstance(c, dict):
-                continue
-            playable = "✓" if c.get("can_play") is True else "✗"
-            kw = c.get("keywords")
-            kws = f" [{', '.join(str(x) for x in kw)}]" if isinstance(kw, list) and kw else ""
-            sc = c.get("star_cost")
-            star_cost = f" + {sc} star" if sc is not None else ""
-            lines.append(
-                f"- [{c.get('index')}] **{c.get('name')}** ({c.get('cost')} energy{star_cost}) "
-                f"[{c.get('type')}] {playable}{kws} — {c.get('description')} "
-                f"(target: {c.get('target_type')})"
-            )
-        lines.append("")
-    elif not has_selectable:
-        lines.append("*No combat hand data.* (Not in combat, or hand is empty.)")
-        lines.append("")
-
-    return "\n".join(lines).rstrip()
-
-
-def _game_state_handcard_response(raw_json: str, format: str) -> str:
-    state = json.loads(raw_json)
-    payload = _build_hand_only_payload(state)
-    if format == "json":
-        return json.dumps(payload, ensure_ascii=False, indent=2)
-    return _format_hand_only_markdown(payload)
 
 
 # ---------------------------------------------------------------------------
@@ -252,24 +139,6 @@ async def get_game_state(format: str = "markdown") -> str:
 
 
 @mcp.tool()
-async def get_game_state_handcard(format: str = "markdown") -> str:
-    """Return only hand-related data: combat `hand`, `energy` / `max_energy`, optional `stars`, and `hand_select`.
-
-    Fetches full state as JSON from the game and strips everything except
-    `state_type`, `message` (if any), local player energy, `hand`, and `hand_select`
-    when choosing cards in combat. Use `format=json` for machine parsing.
-
-    Args:
-        format: "markdown" for readable lines, "json" for structured data.
-    """
-    try:
-        raw = await _get({"format": "json"})
-        return _game_state_handcard_response(raw, format)
-    except Exception as e:
-        return _handle_error(e)
-
-
-@mcp.tool()
 async def use_potion(slot: int, target: str | None = None) -> str:
     """Use a potion from the player's potion slots.
 
@@ -306,27 +175,103 @@ async def proceed_to_map() -> str:
 # ---------------------------------------------------------------------------
 
 
+def _merge_post_result_and_state(
+    json_result_key: str,
+    markdown_action_title: str,
+    post_result: str,
+    state_str: str,
+    format: str,
+) -> str:
+    """Combine action POST JSON with a get_game_state string (markdown or JSON)."""
+    try:
+        action_obj: object = json.loads(post_result)
+    except json.JSONDecodeError:
+        return post_result
+    if format == "json":
+        try:
+            state_obj: object = json.loads(state_str)
+        except json.JSONDecodeError:
+            state_obj = state_str
+        merged = {json_result_key: action_obj, "game_state": state_obj}
+        return json.dumps(merged, ensure_ascii=False, indent=2)
+    action_pretty = (
+        json.dumps(action_obj, ensure_ascii=False, indent=2)
+        if isinstance(action_obj, dict)
+        else post_result
+    )
+    return (
+        f"## {markdown_action_title}\n\n"
+        f"```json\n{action_pretty}\n```\n\n"
+        "## get_game_state (after action)\n\n"
+        f"{state_str}"
+    )
+
+
+async def _post_ok_then_merged_game_state(
+    post_result: str,
+    format: str,
+    json_result_key: str,
+    markdown_action_title: str,
+) -> str:
+    """If POST JSON is success, wait then get_game_state and merge; else return post_result only."""
+    try:
+        action_obj = json.loads(post_result)
+    except json.JSONDecodeError:
+        return post_result
+    if isinstance(action_obj, dict) and action_obj.get("status") == "error":
+        return post_result
+    try:
+        await asyncio.sleep(POST_ACTION_STATE_DELAY_SEC)
+        state_str = await get_game_state(format=format)
+        return _merge_post_result_and_state(
+            json_result_key, markdown_action_title, post_result, state_str, format
+        )
+    except Exception as e:
+        err = _handle_error(e)
+        if format == "json":
+            merged = {json_result_key: action_obj, "game_state_fetch_error": err}
+            return json.dumps(merged, ensure_ascii=False, indent=2)
+        action_pretty = (
+            json.dumps(action_obj, ensure_ascii=False, indent=2)
+            if isinstance(action_obj, dict)
+            else post_result
+        )
+        return (
+            f"## {markdown_action_title}\n\n"
+            f"```json\n{action_pretty}\n```\n\n"
+            "## get_game_state (failed)\n\n"
+            f"{err}"
+        )
+
+
 @mcp.tool()
-async def combat_play_card(card_index: int, target: str | None = None) -> str:
+async def combat_play_card(
+    card_index: int, target: str | None = None, format: str = "markdown"
+) -> str:
     """[Combat] Play a card from the player's hand.
+
+    On success (``status``: ``ok``), waits ``POST_ACTION_STATE_DELAY_SEC`` then fetches
+    ``get_game_state`` with the same ``format`` and returns both parts merged (fewer round-trips).
 
     Args:
         card_index: Index of the card in hand (0-based, as shown in game state).
         target: Entity ID of the target enemy (e.g. "JAW_WORM_0"). Required for single-target cards.
+        format: ``markdown`` or ``json`` for the appended game state (same as ``get_game_state``).
 
-    Indices shift after every play — do not reuse a snapshot from before a play. Prefer
-    ``get_game_state_handcard(format="json")`` to refresh hand indices between plays (lighter than
-    full ``get_game_state``). Use full ``get_game_state`` when you need enemies, intents, HP/block,
-    or non-hand context. Playing from highest index to lowest (right to left) often keeps remaining
-    indices more stable.
+    On errors from the play action, returns only the play response (no wait, no state fetch).
+    Indices shift after every play — use the merged state for the next ``card_index``. Playing from
+    highest index to lowest (right to left) often keeps remaining indices more stable.
     """
     body: dict = {"action": "play_card", "card_index": card_index}
     if target is not None:
         body["target"] = target
     try:
-        return await _post(body)
+        post_result = await _post(body)
     except Exception as e:
         return _handle_error(e)
+    return await _post_ok_then_merged_game_state(
+        post_result, format, "play_card", "combat_play_card"
+    )
 
 
 @mcp.tool()
@@ -378,22 +323,31 @@ async def combat_confirm_selection() -> str:
 
 
 @mcp.tool()
-async def rewards_claim(reward_index: int) -> str:
+async def rewards_claim(reward_index: int, format: str = "markdown") -> str:
     """[Rewards] Claim a reward from the post-combat rewards screen.
 
     Gold, potion, and relic rewards are claimed immediately.
     Card rewards open the card selection screen (state changes to card_reward).
 
+    On success (``status``: ``ok``), waits ``POST_ACTION_STATE_DELAY_SEC`` then fetches
+    ``get_game_state`` with the same ``format`` and returns both parts merged (same pattern as
+    ``combat_play_card``).
+
     Args:
         reward_index: 0-based index of the reward on the rewards screen.
+        format: ``markdown`` or ``json`` for the appended game state (same as ``get_game_state``).
 
-    Note that claiming a reward may change the indices of remaining rewards, so refer to the latest game state for accurate indices.
-    Claiming from right to left can help maintain more stable indices for remaining rewards, as rewards will always shift left to fill in gaps.
+    On errors from the claim action, returns only the POST response (no wait, no state fetch).
+    Claiming a reward may change the indices of remaining rewards — use the merged state for the next index.
+    Claiming from right to left can help keep indices more stable as rewards shift left.
     """
     try:
-        return await _post({"action": "claim_reward", "index": reward_index})
+        post_result = await _post({"action": "claim_reward", "index": reward_index})
     except Exception as e:
         return _handle_error(e)
+    return await _post_ok_then_merged_game_state(
+        post_result, format, "claim_reward", "rewards_claim"
+    )
 
 
 @mcp.tool()
@@ -706,29 +660,12 @@ async def mp_get_game_state(format: str = "markdown") -> str:
 
 
 @mcp.tool()
-async def mp_get_game_state_handcard(format: str = "markdown") -> str:
-    """[Multiplayer] Same as get_game_state_handcard but uses the multiplayer endpoint.
-
-    Local `hand`, `energy`, `max_energy`, and optional `stars` come from `battle.player`
-    in the full state; payload shape matches the singleplayer handcard tool.
-
-    Args:
-        format: "markdown" or "json".
-    """
-    try:
-        raw = await _mp_get({"format": "json"})
-        return _game_state_handcard_response(raw, format)
-    except Exception as e:
-        return _handle_error(e)
-
-
-@mcp.tool()
 async def mp_combat_play_card(card_index: int, target: str | None = None) -> str:
     """[Multiplayer Combat] Play a card from the local player's hand.
 
     Same as singleplayer combat_play_card but routed through the multiplayer
-    endpoint for sync safety. Between plays, prefer ``mp_get_game_state_handcard(format="json")``
-    for hand indices; use full ``mp_get_game_state`` when you need the full battlefield.
+    endpoint for sync safety. Between plays, call ``mp_get_game_state(format="json")`` again
+    to refresh hand indices (same idea as single-player ``get_game_state``).
 
     Args:
         card_index: Index of the card in hand (0-based).
