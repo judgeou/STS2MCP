@@ -16,6 +16,7 @@ from mcp.server.fastmcp import FastMCP
 mcp = FastMCP("sts2")
 
 _base_url: str = "http://localhost:15526"
+_trust_env: bool = True
 
 
 def _sp_url() -> str:
@@ -27,28 +28,28 @@ def _mp_url() -> str:
 
 
 async def _get(params: dict | None = None) -> str:
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, trust_env=_trust_env) as client:
         r = await client.get(_sp_url(), params=params)
         r.raise_for_status()
         return r.text
 
 
 async def _post(body: dict) -> str:
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, trust_env=_trust_env) as client:
         r = await client.post(_sp_url(), json=body)
         r.raise_for_status()
         return r.text
 
 
 async def _mp_get(params: dict | None = None) -> str:
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, trust_env=_trust_env) as client:
         r = await client.get(_mp_url(), params=params)
         r.raise_for_status()
         return r.text
 
 
 async def _mp_post(body: dict) -> str:
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, trust_env=_trust_env) as client:
         r = await client.post(_mp_url(), json=body)
         r.raise_for_status()
         return r.text
@@ -372,7 +373,7 @@ async def combat_confirm_selection() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Rewards (state_type: combat_rewards / card_reward)
+# Rewards (state_type: rewards / card_reward)
 # ---------------------------------------------------------------------------
 
 
@@ -1065,10 +1066,12 @@ def main():
     parser = argparse.ArgumentParser(description="STS2 MCP Server")
     parser.add_argument("--port", type=int, default=15526, help="Game HTTP server port")
     parser.add_argument("--host", type=str, default="localhost", help="Game HTTP server host")
+    parser.add_argument("--no-trust-env", action="store_true", help="Ignore HTTP_PROXY/HTTPS_PROXY environment variables")
     args = parser.parse_args()
 
-    global _base_url
+    global _base_url, _trust_env
     _base_url = f"http://{args.host}:{args.port}"
+    _trust_env = not args.no_trust_env
 
     mcp.run(transport="stdio")
 
