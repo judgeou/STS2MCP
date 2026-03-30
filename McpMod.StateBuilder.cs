@@ -271,29 +271,14 @@ public static partial class McpMod
         var combatState = player.PlayerCombatState;
 
         state["character"] = SafeGetText(() => player.Character.Title);
+        // HP / max HP / block come from Creature on every screen (map, shop, rest, combat).
         state["hp"] = creature.CurrentHp;
         state["max_hp"] = creature.MaxHp;
         state["block"] = creature.Block;
 
         // PlayerCombatState can linger after combat while on map/rest/shop. Energy/MaxEnergy getters
         // run hooks (e.g. Hook.ModifyMaxEnergy) that null-ref without a live combat — only serialize
-        // combat fields when a fight is actually in progress.
-        if (combatState != null && CombatManager.Instance.IsInProgress)
-        {
-            state["hp"] = creature.CurrentHp;
-            state["max_hp"] = creature.MaxHp;
-            state["block"] = creature.Block;
-        }
-        else
-        {
-            state["hp"] = 0;
-            state["max_hp"] = 0;
-            state["block"] = 0;
-        }
-
-        // PlayerCombatState can linger after combat while on map/rest/shop. Energy/MaxEnergy getters
-        // run hooks (e.g. Hook.ModifyMaxEnergy) that null-ref without a live combat — only serialize
-        // combat fields when a fight is actually in progress.
+        // hand/piles/energy when a fight is actually in progress (do not zero hp above).
         bool inLiveCombat = CombatManager.Instance != null && CombatManager.Instance.IsInProgress;
         if (combatState != null && inLiveCombat)
         {
