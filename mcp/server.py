@@ -104,7 +104,8 @@ async def get_game_state(format: str = "markdown") -> str:
     """Get the current Slay the Spire 2 game state.
 
     Returns the full game state including player stats, hand, enemies, potions, etc.
-    The state_type field indicates the current screen (combat, map, event, shop, etc.).
+    The state_type field indicates the current screen (combat, map, event, shop,
+    fake_merchant, etc.).
 
     When in combat with ``battle.is_play_phase`` false (enemy / non-play phase), waits
     ``PLAY_PHASE_POLL_INTERVAL_SEC`` between polls and re-fetches until play phase is true,
@@ -158,10 +159,26 @@ async def use_potion(slot: int, target: str | None = None) -> str:
 
 
 @mcp.tool()
+async def discard_potion(slot: int) -> str:
+    """Discard a potion from the player's potion slots to free up space.
+
+    Use this when all potion slots are full and you need room for incoming potions
+    (e.g. before collecting a potion reward).
+
+    Args:
+        slot: Potion slot index to discard (as shown in game state).
+    """
+    try:
+        return await _post({"action": "discard_potion", "slot": slot})
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool()
 async def proceed_to_map() -> str:
     """Proceed from the current screen to the map.
 
-    Works from: rewards screen, rest site, shop.
+    Works from: rewards screen, rest site, shop, fake merchant.
     Does NOT work for events — use event_choose_option() with the Proceed option's index.
     """
     try:
@@ -415,7 +432,10 @@ async def rest_choose_option(option_index: int) -> str:
 
 @mcp.tool()
 async def shop_purchase(item_index: int) -> str:
-    """[Shop] Purchase an item from the shop.
+    """[Shop / Fake Merchant] Purchase an item from the shop.
+
+    Works for both regular shops (state_type: shop) and the fake merchant
+    event (state_type: fake_merchant). The fake merchant only sells relics.
 
     Args:
         item_index: 0-based index of the item from the shop state.
@@ -719,6 +739,19 @@ async def mp_use_potion(slot: int, target: str | None = None) -> str:
         body["target"] = target
     try:
         return await _mp_post(body)
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool()
+async def mp_discard_potion(slot: int) -> str:
+    """[Multiplayer] Discard a potion from the local player's potion slots to free up space.
+
+    Args:
+        slot: Potion slot index to discard (as shown in game state).
+    """
+    try:
+        return await _mp_post({"action": "discard_potion", "slot": slot})
     except Exception as e:
         return _handle_error(e)
 

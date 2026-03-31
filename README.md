@@ -16,21 +16,21 @@ Singleplayer and multiplayer (co-op) supported. Tested against STS2 `v0.99.1`.
 
 ## For Players
 
-### Install
+### 1. Install the Mod
 
-Grab the [latest release](https://github.com/Gennadiyev/STS2_MCP/releases/latest) and follow the instructions:
+Grab the [latest release](https://github.com/Gennadiyev/STS2MCP/releases/latest) and follow the instructions:
 
 1. Copy `STS2_MCP.dll` and `STS2_MCP.json` to `<game_install>/mods/`
 2. Launch the game and enable mods in settings (a consent dialog appears on first launch)
 3. The mod starts an HTTP server on `localhost:15526` automatically
 
-### Connect to Claude
-
-Requires [Python 3.11+](https://www.python.org/) and [uv](https://docs.astral.sh/uv/).
+### 2. Give Your AI Instructions to Interact with the Game
 
 **Clone or download the repository**, then:
 
-**Claude Code** — add to your project's `.mcp.json`:
+| I prefer a skill | I prefer an MCP Server |
+|---|---|
+| Tell AI to reference docs/raw-*.md. Sit back, and watch it play. | Requires [Python 3.11+](https://www.python.org/) and [uv](https://docs.astral.sh/uv/). Follow the instructions below ⬇️ |
 
 ```json
 {
@@ -43,17 +43,19 @@ Requires [Python 3.11+](https://www.python.org/) and [uv](https://docs.astral.sh
 }
 ```
 
-**Claude Desktop** — add to `claude_desktop_config.json` with the same config as above.
+**Claude Code**: add to your project's `.mcp.json`:
+**Claude Desktop**: add to `claude_desktop_config.json` with the same config as above.
+*Other agents should have similar config options for custom MCP servers.*
 
-The MCP server accepts `--host` and `--port` flags if you need non-default settings.
+The MCP server accepts `--host` and `--port` options if you need non-default settings.
 
-Full tool reference: [mcp/README.md](./mcp/README.md) | Raw HTTP API: [docs/raw_api.md](./docs/raw_api.md)
+Flag `--no-trust-env` can be used to disable `requests` from picking up proxy settings from the environment, which can cause connection issues if you are running the server in a container.
 
 ## For Developers
 
 ### Build & Install
 
-Requires [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
+Requires [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) and the base game.
 
 **PowerShell** (recommended):
 
@@ -72,16 +74,6 @@ The script builds `STS2_MCP.dll` into `out/STS2_MCP/`. Copy it along with the ma
 out/STS2_MCP/STS2_MCP.dll           ->  <game_install>/mods/STS2_MCP.dll
 mod_manifest.json                   ->  <game_install>/mods/STS2_MCP.json
 ```
-
-### Features
-
-**Singleplayer** — full coverage of all game screens:
-
-Combat (play cards, use potions, end turn, in-combat card selection), rewards (claim, pick/skip cards), map navigation (full DAG with lookahead), rest sites, shop, events & ancients, card selection overlays (transform, upgrade, remove), relic selection, treasure rooms, keyword glossary across all entities.
-
-**Multiplayer (beta)** — all singleplayer features plus:
-
-End-turn voting (submit/undo), map node voting, shared event voting, treasure relic bidding, all-players state summary, per-player ready/vote tracking. Endpoints are mutually guarded (singleplayer endpoint rejects multiplayer runs and vice versa).
 
 ## License
 
