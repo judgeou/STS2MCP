@@ -40,7 +40,7 @@ public static partial class McpMod
             {
                 string youTag = p["is_local"] is true ? " **(YOU)**" : "";
                 string aliveTag = p["is_alive"] is false ? " [DEAD]" : "";
-                sb.AppendLine($"- **{p["character"]}**{youTag}{aliveTag} — HP: {p["hp"]}/{p["max_hp"]} | Gold: {p["gold"]}");
+                sb.AppendLine($"- **{p["character"]}**{youTag}{aliveTag} - HP: {p["hp"]}/{p["max_hp"]} | Gold: {p["gold"]}");
             }
             sb.AppendLine();
         }
@@ -52,7 +52,7 @@ public static partial class McpMod
         {
             sb.AppendLine("## Player (You)");
             string stars = topPlayer.TryGetValue("stars", out var s) && s != null ? $" | Stars: {s}" : "";
-            sb.AppendLine($"**{topPlayer["character"]}** — HP: {topPlayer["hp"]}/{topPlayer["max_hp"]} | Gold: {topPlayer["gold"]}{stars}");
+            sb.AppendLine($"**{topPlayer["character"]}** - HP: {topPlayer["hp"]}/{topPlayer["max_hp"]} | Gold: {topPlayer["gold"]}{stars}");
             sb.AppendLine();
 
             FormatListSection(sb, "Relics", topPlayer, "relics", r =>
@@ -152,7 +152,7 @@ public static partial class McpMod
             sb.AppendLine();
         }
 
-        // Keyword glossary — collect all unique keyword definitions
+        // Keyword glossary - collect all unique keyword definitions
         var glossary = new Dictionary<string, string>();
         CollectKeywordsFromState(state, glossary);
         if (glossary.Count > 0)
@@ -175,7 +175,7 @@ public static partial class McpMod
         {
             sb.AppendLine("## Player (You)");
             string stars = player.TryGetValue("stars", out var s) && s != null ? $" | Stars: {s}" : "";
-            sb.AppendLine($"**{player["character"]}** — HP: {player["hp"]}/{player["max_hp"]} | Block: {player["block"]} | Energy: {player["energy"]}/{player["max_energy"]}{stars} | Gold: {player["gold"]}");
+            sb.AppendLine($"**{player["character"]}** - HP: {player["hp"]}/{player["max_hp"]} | Block: {player["block"]} | Energy: {player["energy"]}/{player["max_energy"]}{stars} | Gold: {player["gold"]}");
             sb.AppendLine();
 
             FormatListSection(sb, "Status", player, "status", p => $"- **{p["name"]}** ({FormatStatusAmount(p["amount"])}): {p["description"]}");
@@ -195,7 +195,7 @@ public static partial class McpMod
                     string keywords = card.TryGetValue("keywords", out var kw) && kw is List<string> kwList && kwList.Count > 0
                         ? $" [{string.Join(", ", kwList)}]" : "";
                     string starCost = card.TryGetValue("star_cost", out var sc) && sc != null ? $" + {sc} star" : "";
-                    sb.AppendLine($"- [{card["index"]}] **{card["name"]}** ({card["cost"]} energy{starCost}) [{card["type"]}] {playable}{keywords} — {card["description"]} (target: {card["target_type"]})");
+                    sb.AppendLine($"- [{card["index"]}] **{card["name"]}** ({card["cost"]} energy{starCost}) [{card["type"]}] {playable}{keywords} - {card["description"]} (target: {card["target_type"]})");
                 }
                 sb.AppendLine();
             }
@@ -209,7 +209,7 @@ public static partial class McpMod
                 sb.AppendLine($"### Orbs ({orbs.Count}/{slots} slots)");
                 foreach (var orb in orbs)
                 {
-                    string desc = orb.TryGetValue("description", out var d) && d != null ? $" — {d}" : "";
+                    string desc = orb.TryGetValue("description", out var d) && d != null ? $" - {d}" : "";
                     sb.AppendLine($"- **{orb["name"]}** (passive: {orb["passive_val"]}, evoke: {orb["evoke_val"]}){desc}");
                 }
                 if (empty > 0)
@@ -250,31 +250,22 @@ public static partial class McpMod
         sb.AppendLine("### Deck Information");
         sb.AppendLine();
 
-        sb.AppendLine($"#### Draw Pile ({player["draw_pile_count"]} cards, in random order)");
-        if (player.TryGetValue("draw_pile", out var drawObj) && drawObj is List<Dictionary<string, object?>> drawPile && drawPile.Count > 0)
-        {
-            foreach (var card in drawPile)
-                sb.AppendLine($"- {card["name"]}: {card["description"]}");
-        }
-        else
-            sb.AppendLine("- *(empty)*");
-        sb.AppendLine();
+        FormatPileMarkdown(sb, player, "draw_pile", "draw_pile_count", "Draw Pile", " in random order");
+        FormatPileMarkdown(sb, player, "discard_pile", "discard_pile_count", "Discard Pile");
+        FormatPileMarkdown(sb, player, "exhaust_pile", "exhaust_pile_count", "Exhaust Pile");
+    }
 
-        sb.AppendLine($"#### Discard Pile ({player["discard_pile_count"]} cards)");
-        if (player.TryGetValue("discard_pile", out var discardObj) && discardObj is List<Dictionary<string, object?>> discardPile && discardPile.Count > 0)
+    private static void FormatPileMarkdown(StringBuilder sb, Dictionary<string, object?> player,
+        string pileKey, string countKey, string label, string suffix = "")
+    {
+        sb.AppendLine($"#### {label} ({player[countKey]} cards{(suffix.Length > 0 ? "," : "")}{suffix})");
+        if (player.TryGetValue(pileKey, out var pileObj) && pileObj is List<Dictionary<string, object?>> pile && pile.Count > 0)
         {
-            foreach (var card in discardPile)
-                sb.AppendLine($"- {card["name"]}: {card["description"]}");
-        }
-        else
-            sb.AppendLine("- *(empty)*");
-        sb.AppendLine();
-
-        sb.AppendLine($"#### Exhaust Pile ({player["exhaust_pile_count"]} cards)");
-        if (player.TryGetValue("exhaust_pile", out var exhaustObj) && exhaustObj is List<Dictionary<string, object?>> exhaustPile && exhaustPile.Count > 0)
-        {
-            foreach (var card in exhaustPile)
-                sb.AppendLine($"- {card["name"]}: {card["description"]}");
+            foreach (var card in pile)
+            {
+                string starCost = card.TryGetValue("star_cost", out var sc) && sc != null ? $" + {sc} star" : "";
+                sb.AppendLine($"- {card["name"]} ({card["cost"]}{starCost}): {card["description"]}");
+            }
         }
         else
             sb.AppendLine("- *(empty)*");
@@ -291,7 +282,7 @@ public static partial class McpMod
         bool inDialogue = evt.TryGetValue("in_dialogue", out var d) && d is true;
         if (inDialogue)
         {
-            sb.AppendLine("*Ancient dialogue in progress — use `advance_dialogue` to continue.*");
+            sb.AppendLine("*Ancient dialogue in progress - use `advance_dialogue` to continue.*");
             sb.AppendLine();
             return;
         }
@@ -307,7 +298,7 @@ public static partial class McpMod
 
                 string tag = locked ? " (LOCKED)" : chosen ? " (CHOSEN)" : proceed ? " (PROCEED)" : "";
                 string relic = opt.TryGetValue("relic_name", out var rn) && rn != null ? $" [Relic: {rn}]" : "";
-                sb.AppendLine($"- [{opt["index"]}] **{opt["title"]}**{tag}{relic} — {opt["description"]}");
+                sb.AppendLine($"- [{opt["index"]}] **{opt["title"]}**{tag}{relic} - {opt["description"]}");
             }
             sb.AppendLine();
         }
@@ -326,7 +317,7 @@ public static partial class McpMod
             foreach (var opt in options)
             {
                 string enabled = opt["is_enabled"] is true ? "" : " (DISABLED)";
-                sb.AppendLine($"- [{opt["index"]}] **{opt["name"]}**{enabled} — {opt["description"]}");
+                sb.AppendLine($"- [{opt["index"]}] **{opt["name"]}**{enabled} - {opt["description"]}");
             }
             sb.AppendLine();
         }
@@ -361,19 +352,22 @@ public static partial class McpMod
 
                 bool stocked = item["is_stocked"] is true;
                 bool afford = item["can_afford"] is true;
-                string costTag = stocked ? $"{item["cost"]}g" : "SOLD";
+                string priceTag = stocked ? $"{item["price"]}g" : "SOLD";
                 string affordTag = stocked && !afford ? " (can't afford)" : "";
                 string saleTag = item.TryGetValue("on_sale", out var os) && os is true ? " **SALE**" : "";
 
+                string cardCost = item.TryGetValue("card_cost", out var cc) && cc != null ? cc.ToString()! : "";
+                string cardStarCost = item.TryGetValue("card_star_cost", out var csc) && csc != null ? $" + {csc} star" : "";
+                string cardEnergy = cardCost != "" ? $" ({cardCost} energy{cardStarCost})" : "";
                 string desc = category switch
                 {
-                    "card" => $"**{item.GetValueOrDefault("card_name")}** [{item.GetValueOrDefault("card_type")}] {item.GetValueOrDefault("card_rarity")} — {item.GetValueOrDefault("card_description")}",
-                    "relic" => $"**{item.GetValueOrDefault("relic_name")}** — {item.GetValueOrDefault("relic_description")}",
-                    "potion" => $"**{item.GetValueOrDefault("potion_name")}** — {item.GetValueOrDefault("potion_description")}",
+                    "card" => $"**{item.GetValueOrDefault("card_name")}**{cardEnergy} [{item.GetValueOrDefault("card_type")}] {item.GetValueOrDefault("card_rarity")} - {item.GetValueOrDefault("card_description")}",
+                    "relic" => $"**{item.GetValueOrDefault("relic_name")}** - {item.GetValueOrDefault("relic_description")}",
+                    "potion" => $"**{item.GetValueOrDefault("potion_name")}** - {item.GetValueOrDefault("potion_description")}",
                     "card_removal" => "**Remove a card** from your deck",
                     _ => "Unknown item"
                 };
-                sb.AppendLine($"- [{item["index"]}] {desc} — {costTag}{saleTag}{affordTag}");
+                sb.AppendLine($"- [{item["index"]}] {desc} - {priceTag}{saleTag}{affordTag}");
             }
             sb.AppendLine();
         }
@@ -514,6 +508,8 @@ public static partial class McpMod
                 string extra = "";
                 if (item.TryGetValue("gold_amount", out var gold) && gold != null)
                     extra = $" ({gold} gold)";
+                else if (item.TryGetValue("potion_description", out var pDesc) && pDesc != null)
+                    extra = $" - {pDesc}";
                 else if (item.TryGetValue("potion_name", out var pName) && pName != null)
                     extra = $" ({pName})";
                 sb.AppendLine($"- [{item["index"]}] **{item["type"]}**: {item["description"]}{extra}");
@@ -545,7 +541,7 @@ public static partial class McpMod
                 string starCost = card.TryGetValue("star_cost", out var sc) && sc != null ? $" + {sc} star" : "";
                 string keywords = card.TryGetValue("keywords", out var kw) && kw is List<string> kwList && kwList.Count > 0
                     ? $" [{string.Join(", ", kwList)}]" : "";
-                sb.AppendLine($"- [{card["index"]}] **{card["name"]}** ({card["cost"]} energy{starCost}) [{card["type"]}] {card["rarity"]}{keywords} — {card["description"]}");
+                sb.AppendLine($"- [{card["index"]}] **{card["name"]}** ({card["cost"]} energy{starCost}) [{card["type"]}] {card["rarity"]}{keywords} - {card["description"]}");
             }
             sb.AppendLine();
         }
@@ -565,7 +561,7 @@ public static partial class McpMod
         if (relicSelect.TryGetValue("relics", out var relicsObj) && relicsObj is List<Dictionary<string, object?>> relics)
         {
             foreach (var relic in relics)
-                sb.AppendLine($"- [{relic["index"]}] **{relic["name"]}** — {relic["description"]}");
+                sb.AppendLine($"- [{relic["index"]}] **{relic["name"]}** - {relic["description"]}");
             sb.AppendLine();
         }
 
@@ -592,7 +588,8 @@ public static partial class McpMod
             sb.AppendLine("### Selectable Cards");
             foreach (var card in cards)
             {
-                sb.AppendLine($"- [{card["index"]}] **{card["name"]}** ({card["cost"]} energy) [{card["type"]}] — {card["description"]}");
+                string starCost = card.TryGetValue("star_cost", out var sc) && sc != null ? $" + {sc} star" : "";
+                sb.AppendLine($"- [{card["index"]}] **{card["name"]}** ({card["cost"]} energy{starCost}) [{card["type"]}] - {card["description"]}");
             }
             sb.AppendLine();
         }
@@ -606,7 +603,7 @@ public static partial class McpMod
         }
 
         bool canConfirm = handSelect.TryGetValue("can_confirm", out var cc) && cc is true;
-        sb.AppendLine($"Use `combat_select_card(card_index)` to select. Can confirm: {(canConfirm ? "Yes — use `combat_confirm_selection`" : "No — select more cards")}");
+        sb.AppendLine($"Use `combat_select_card(card_index)` to select. Can confirm: {(canConfirm ? "Yes - use `combat_confirm_selection`" : "No - select more cards")}");
         sb.AppendLine();
     }
 
@@ -634,7 +631,8 @@ public static partial class McpMod
             sb.AppendLine("### Cards");
             foreach (var card in cards)
             {
-                sb.AppendLine($"- [{card["index"]}] **{card["name"]}** ({card["cost"]} energy) [{card["type"]}] {card["rarity"]} — {card["description"]}");
+                string starCost = card.TryGetValue("star_cost", out var sc) && sc != null ? $" + {sc} star" : "";
+                sb.AppendLine($"- [{card["index"]}] **{card["name"]}** ({card["cost"]} energy{starCost}) [{card["type"]}] {card["rarity"]} - {card["description"]}");
             }
             sb.AppendLine();
         }
@@ -644,7 +642,7 @@ public static partial class McpMod
         bool canCancel = cardSelect.TryGetValue("can_cancel", out var cn) && cn is true;
 
         if (preview)
-            sb.AppendLine("**Preview is showing** — use `confirm_selection` to confirm or `cancel_selection` to go back.");
+            sb.AppendLine("**Preview is showing** - use `confirm_selection` to confirm or `cancel_selection` to go back.");
         else
             sb.AppendLine($"**Select cards** using `select_card(index)`. Can confirm: {(canConfirm ? "Yes" : "No")} | Can cancel: {(canCancel ? "Yes" : "No")}");
         sb.AppendLine();
@@ -667,7 +665,10 @@ public static partial class McpMod
                 if (bundle.TryGetValue("cards", out var cardsObj) && cardsObj is List<Dictionary<string, object?>> cards)
                 {
                     foreach (var card in cards)
-                        sb.AppendLine($"  {card["name"]} ({card["cost"]}) [{card["type"]}] {card["rarity"]}");
+                    {
+                        string starCost = card.TryGetValue("star_cost", out var sc) && sc != null ? $" + {sc} star" : "";
+                        sb.AppendLine($"  {card["name"]} ({card["cost"]}{starCost}) [{card["type"]}] {card["rarity"]}");
+                    }
                 }
             }
             sb.AppendLine();
@@ -684,7 +685,10 @@ public static partial class McpMod
             {
                 sb.AppendLine("### Preview Cards");
                 foreach (var card in previewCards)
-                    sb.AppendLine($"- **{card["name"]}** ({card["cost"]} energy) [{card["type"]}] {card["rarity"]} - {card["description"]}");
+                {
+                    string starCost = card.TryGetValue("star_cost", out var sc) && sc != null ? $" + {sc} star" : "";
+                    sb.AppendLine($"- **{card["name"]}** ({card["cost"]} energy{starCost}) [{card["type"]}] {card["rarity"]} - {card["description"]}");
+                }
                 sb.AppendLine();
             }
         }
@@ -748,7 +752,7 @@ public static partial class McpMod
             foreach (var relic in relics)
             {
                 string rarity = relic.TryGetValue("rarity", out var r) && r != null ? $" ({r})" : "";
-                sb.AppendLine($"- [{relic["index"]}] **{relic["name"]}**{rarity} — {relic["description"]}");
+                sb.AppendLine($"- [{relic["index"]}] **{relic["name"]}**{rarity} - {relic["description"]}");
             }
             sb.AppendLine();
             sb.AppendLine("Use `treasure_claim_relic(relic_index)` to claim a relic.");
@@ -835,7 +839,7 @@ public static partial class McpMod
                             string keywords = card.TryGetValue("keywords", out var kw) && kw is List<string> kwList && kwList.Count > 0
                                 ? $" [{string.Join(", ", kwList)}]" : "";
                             string starCost = card.TryGetValue("star_cost", out var sc) && sc != null ? $" + {sc} star" : "";
-                            sb.AppendLine($"- [{card["index"]}] **{card["name"]}** ({card["cost"]} energy{starCost}) [{card["type"]}] {playable}{keywords} — {card["description"]} (target: {card["target_type"]})");
+                            sb.AppendLine($"- [{card["index"]}] **{card["name"]}** ({card["cost"]} energy{starCost}) [{card["type"]}] {playable}{keywords} - {card["description"]} (target: {card["target_type"]})");
                         }
                         sb.AppendLine();
                     }
@@ -849,7 +853,7 @@ public static partial class McpMod
                         sb.AppendLine($"### Orbs ({orbs.Count}/{slots} slots)");
                         foreach (var orb in orbs)
                         {
-                            string desc = orb.TryGetValue("description", out var d) && d != null ? $" — {d}" : "";
+                            string desc = orb.TryGetValue("description", out var d) && d != null ? $" - {d}" : "";
                             sb.AppendLine($"- **{orb["name"]}** (passive: {orb["passive_val"]}, evoke: {orb["evoke_val"]}){desc}");
                         }
                         if (empty > 0)

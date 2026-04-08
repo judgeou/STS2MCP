@@ -113,6 +113,8 @@ Always present at the top level (except `menu`). Contains everything about the l
 ```jsonc
 {
   "name": "Strike",
+  "cost": "1",               // Energy cost as string ("X" for X-cost)
+  "star_cost": null,          // Regent star cost as string, null if N/A
   "description": "Deal 6 damage."
 }
 ```
@@ -231,6 +233,7 @@ Appears when a card effect prompts "Select a card to exhaust/discard/upgrade". *
         "name": "Strike",
         "type": "Attack",
         "cost": "1",
+        "star_cost": null,       // Regent star cost as string, null if N/A
         "description": "Deal 6 damage.",
         "is_upgraded": false,
         "keywords": [ /* Keyword Objects */ ]
@@ -416,13 +419,15 @@ Shop inventory is auto-opened when state is queried.
       {
         "index": 0,
         "category": "card",
-        "cost": 75,
+        "price": 75,               // Gold price in the shop
         "is_stocked": true,
         "can_afford": true,
         "on_sale": false,
         "card_id": "OFFERING",
         "card_name": "Offering",
         "card_type": "Skill",
+        "card_cost": "1",          // Energy cost as string ("X" for X-cost)
+        "card_star_cost": null,    // Regent star cost as string, null if N/A
         "card_rarity": "Rare",
         "card_description": "Lose 6 HP. Gain 2 Energy. Draw 3 cards.",
         "keywords": [ /* Keyword Objects */ ]
@@ -431,7 +436,7 @@ Shop inventory is auto-opened when state is queried.
       {
         "index": 5,
         "category": "relic",
-        "cost": 150,
+        "price": 150,
         "is_stocked": true,
         "can_afford": false,
         "relic_id": "VAJRA",
@@ -443,7 +448,7 @@ Shop inventory is auto-opened when state is queried.
       {
         "index": 8,
         "category": "potion",
-        "cost": 50,
+        "price": 50,
         "is_stocked": true,
         "can_afford": true,
         "potion_id": "FIRE_POTION",
@@ -455,7 +460,7 @@ Shop inventory is auto-opened when state is queried.
       {
         "index": 10,
         "category": "card_removal",
-        "cost": 75,
+        "price": 75,
         "is_stocked": true,
         "can_afford": true
       }
@@ -467,6 +472,45 @@ Shop inventory is auto-opened when state is queried.
   "player": { ... }
 }
 ```
+
+### `fake_merchant` — Fake Merchant Event
+
+A relic-only shop disguised as an event. Uses `shop_purchase` and `proceed` actions (same as regular shop). If the player triggers a fight, the merchant disappears.
+
+```jsonc
+{
+  "state_type": "fake_merchant",
+  "fake_merchant": {
+    "event_id": "FAKE_MERCHANT",
+    "event_name": "Fake Merchant",
+    "started_fight": false,         // true after triggering the foul potion fight
+    "shop": {
+      "items": [
+        {
+          "index": 0,
+          "category": "relic",
+          "cost": 150,
+          "is_stocked": true,
+          "can_afford": true,
+          "relic_id": "VAJRA",
+          "relic_name": "Vajra",
+          "relic_description": "At the start of each combat, gain 1 Strength.",
+          "keywords": [ /* Keyword Objects */ ]
+        }
+      ],
+      "can_proceed": true
+    },
+    // After fight:
+    // "started_fight": true,
+    // "shop": { "items": [], "can_proceed": true },
+    // "message": "The fake merchant has been defeated. Proceed to map."
+  },
+  "run": { ... },
+  "player": { ... }
+}
+```
+
+**Note:** The fake merchant only sells relics — no cards, potions, or card removal. The `shop_purchase` action works the same as for a regular shop.
 
 ### `treasure` — Treasure Room
 
@@ -512,6 +556,7 @@ Covers deck transforms, upgrades, removals, and choose-a-card effects. Appears o
         "name": "Strike",
         "type": "Attack",
         "cost": "1",
+        "star_cost": null,       // Regent star cost as string, null if N/A
         "description": "Deal 6 damage.",
         "rarity": "Common",
         "is_upgraded": false,
@@ -551,6 +596,7 @@ Choose between bundles of cards (e.g. from Scroll Boxes relic).
             "name": "Uppercut",
             "type": "Attack",
             "cost": "2",
+            "star_cost": null,   // Regent star cost as string, null if N/A
             "description": "Deal 13 damage. Apply 1 Weak. Apply 1 Vulnerable.",
             "rarity": "Uncommon",
             "is_upgraded": false,
@@ -584,6 +630,7 @@ Boss relic selection. Pick is immediate.
         "id": "BLACK_STAR",
         "name": "Black Star",
         "description": "Elites drop an additional relic.",
+        "rarity": "Rare",
         "keywords": [ /* Keyword Objects */ ]
       }
     ],
